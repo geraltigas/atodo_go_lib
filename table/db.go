@@ -23,5 +23,17 @@ func InitDB() error {
 		}
 		log.Println("DB opened")
 	}
+
+	{
+		err := InitAppStateTable()
+		if err != nil {
+			return err
+		}
+		err = InitTaskTable()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

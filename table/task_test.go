@@ -7,23 +7,36 @@ import (
 
 func TestAddTask(t *testing.T) {
 	err := InitDB()
-	err = InitTaskTable()
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
+	err = InitTaskTable()
 	task := Task{
+		RootTask:   1,
 		Name:       "Test Task",
 		Goal:       "Test Goal",
-		RootTask:   0,
-		Deadline:   time.Now().Unix(),
-		InWorkTime: true,
+		Deadline:   time.Now().UTC(),
+		InWorkTime: false,
 		Status:     Todo,
 		ParentTask: 0,
 	}
-
-	err = AddTask(task)
-	if err != nil {
-		t.Errorf("Failed to add task: %v", err)
+	id := AddTask(task)
+	if id == -1 {
+		t.Fatal("Failed to add task")
 	}
 
+	task.ID = id
+	task2, err := GetTaskByID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !task.Equal(task2) {
+		t.Fatal("Failed to add task")
+	}
+
+	err = DeleteTask(id)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

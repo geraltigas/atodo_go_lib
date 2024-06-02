@@ -1,7 +1,9 @@
 package table
 
 import (
+	"fmt"
 	"log"
+	"time"
 )
 
 type TaskStatus int
@@ -13,18 +15,29 @@ const (
 )
 
 type Task struct {
-	ID         int    `gorm:"primaryKey;autoIncrement"`
-	RootTask   int    `gorm:"column:root_task"`
-	Name       string `gorm:"type:text"`
-	Goal       string `gorm:"type:text"`
-	Deadline   int64  `gorm:"type:timestamp"`
-	InWorkTime bool   `gorm:"column:in_work_time"`
+	ID         int       `gorm:"primaryKey;autoIncrement"`
+	RootTask   int       `gorm:"column:root_task"`
+	Name       string    `gorm:"type:text"`
+	Goal       string    `gorm:"type:text"`
+	Deadline   time.Time `gorm:"type:timestamp"`
+	InWorkTime bool      `gorm:"column:in_work_time"`
 	Status     TaskStatus
 	ParentTask int `gorm:"column:parent_task"`
 }
 
 func (Task) TableName() string {
 	return "task"
+}
+
+func (task Task) Equal(other Task) bool {
+	return task.ID == other.ID &&
+		task.RootTask == other.RootTask &&
+		task.Name == other.Name &&
+		task.Goal == other.Goal &&
+		task.Deadline == other.Deadline &&
+		task.InWorkTime == other.InWorkTime &&
+		task.Status == other.Status &&
+		task.ParentTask == other.ParentTask
 }
 
 func InitTaskTable() error {
@@ -34,10 +47,6 @@ func InitTaskTable() error {
 		return err
 	}
 	log.Println("Task table migrated")
-	// get ID = 1 task and print
-	var task Task
-	DB.First(&task, 1)
-	log.Println("Task 1: ", task)
 	return nil
 }
 
@@ -45,7 +54,7 @@ func AddTask(task Task) int {
 	err := DB.Create(&task).Error
 	if err != nil {
 		log.Fatal("Failed to add task: ", err)
-		return 0
+		return -1
 	}
 	log.Println("Task added: ", task.ID)
 	return task.ID
@@ -181,11 +190,11 @@ func CreateTask(name string, goal string, deadline int64, inWorkTime bool) error
 		Name:       name,
 		Goal:       goal,
 		RootTask:   0,
-		Deadline:   deadline,
+		Deadline:   time.UnixMilli(deadline),
 		InWorkTime: inWorkTime,
 		Status:     Todo,
 	}
-	print(task)
+	fmt.Println("Task created: ", task)
 	// TODO
 	//	id := AddTask(task)
 	//	int64_t task_id = add_task(task);
@@ -264,3 +273,4 @@ func CheckParentStatus(id int) bool {
 }
 
 // TODO: bool task::complete_task(int64_t task_id)
+// TODO: std::vector<int64_t> task::get_sub_tasks_connected_to_end(int64_t task_id)
