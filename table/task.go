@@ -1,8 +1,11 @@
 package table
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
+	"strconv"
 	"time"
 )
 
@@ -14,15 +17,44 @@ const (
 	Done      TaskStatus = 4
 )
 
+func (status *TaskStatus) String() string {
+	names := [...]string{
+		"Todo",
+		"Suspended",
+		"Done",
+	}
+	if *status < Todo || *status > Done {
+		return "Unknown"
+	}
+	return names[*status]
+}
+
+func (status *TaskStatus) FromString(status2 string) {
+	switch status2 {
+	case "Todo":
+		*status = Todo
+	case "Suspended":
+		*status = Suspended
+	case "Done":
+		*status = Done
+	default:
+		*status = Todo
+	}
+}
+
 type Task struct {
-	ID         int       `gorm:"primaryKey;autoIncrement"`
-	RootTask   int       `gorm:"column:root_task"`
-	Name       string    `gorm:"type:text"`
-	Goal       string    `gorm:"type:text"`
-	Deadline   time.Time `gorm:"type:timestamp"`
-	InWorkTime bool      `gorm:"column:in_work_time"`
-	Status     TaskStatus
-	ParentTask int `gorm:"column:parent_task"`
+	ID                   int       `gorm:"primaryKey;autoIncrement"`
+	RootTask             int       `gorm:"column:root_task"`
+	Name                 string    `gorm:"type:text"`
+	Goal                 string    `gorm:"type:text"`
+	Deadline             time.Time `gorm:"type:timestamp"`
+	InWorkTime           bool      `gorm:"column:in_work_time"`
+	Status               TaskStatus
+	ParentTask           int    `gorm:"column:parent_task"`
+	PositionX            int    `gorm:"column:position_x"`
+	PositionY            int    `gorm:"column:position_y"`
+	DependencyConstraint string `gorm:"column:dependency_constraint"`
+	SubtaskConstraint    string `gorm:"column:subtask_constraint"`
 }
 
 func (Task) TableName() string {
@@ -185,7 +217,7 @@ func GetTasksByParentTask(parentTask int) ([]Task, error) {
 	return tasks, nil
 }
 
-func CreateTask(name string, goal string, deadline int64, inWorkTime bool) error {
+func CreateTask(name string, goal string, deadline int64, inWorkTime bool) (int, error) {
 	task := Task{
 		Name:       name,
 		Goal:       goal,
@@ -195,27 +227,40 @@ func CreateTask(name string, goal string, deadline int64, inWorkTime bool) error
 		Status:     Todo,
 	}
 	fmt.Println("Task created: ", task)
-	// TODO
-	//	id := AddTask(task)
-	//	int64_t task_id = add_task(task);
-	//	task_ui::add_or_update_task_ui(task_id, task.parent_task, 0, 0);
-	//	task_constraint::set_task_constraint({task_id, "", ""});
-	return nil
+	task.ID = AddTask(task)
+	err := UpdatePosition(task.ID, 0, 0)
+	if err != nil {
+		return -1, err
+	}
+	err = UpdateConstraints(task.ID, "", "")
+	if err != nil {
+		return -1, err
+	}
+	return task.ID, nil
 }
 
 func EliminateTask(id int) error {
-	_, err := GetTaskByID(id)
-	if err != nil {
+	task, err := GetTaskByID(id)
+	if err != nil || task.ID == -1 {
 		return err
 	}
 	tasks, err := GetTasksByParentTask(id)
-	// TODO
-	//task_ui::delete_task_ui(task_id);
-	//task_relation::remove_all_related_relations(task_id);
-	//task_trigger::delete_task_triggers_by_id(task_id);
-	//task_after_effect::delete_after_effect_by_id(task_id);
-	//suspended_task::delete_suspended_task(task_id);
-	//task_constraint::delete_task_constraint(task_id);
+	err = DeleteAllRelatedTaskRelations(id)
+	if err != nil {
+		return err
+	}
+	err = DeleteTaskTriggersByID(id)
+	if err != nil {
+		return err
+	}
+	err = DeleteTaskAfterEffectByID(id)
+	if err != nil {
+		return err
+	}
+	err = DeleteSuspendedTasks(id)
+	if err != nil {
+		return err
+	}
 	for _, task := range tasks {
 		err := EliminateTask(task.ID)
 		if err != nil {
@@ -225,8 +270,237 @@ func EliminateTask(id int) error {
 	return DeleteTask(id)
 }
 
-// TODO: task::task_detail_t task::get_detailed_task(int64_t task_id)
-// TODO: bool task::set_detailed_task(const task_detail_t &task)
+type TaskDetail struct {
+	ID                   int
+	Name                 string
+	Goal                 string
+	Deadline             int64
+	InWorkTime           bool
+	Status               string
+	TriggerTypes         []string
+	AfterEffectTypes     []string
+	SuspendedTaskTypes   []string
+	ResumeTime           string
+	Email                string
+	Keywords             []string
+	EventName            string
+	EventDescription     string
+	NowAt                int
+	Period               int
+	Intervals            []int
+	DependencyConstraint string
+	SubtaskConstraint    string
+}
+
+func GetDetailedTask(id int) (TaskDetail, error) {
+	task, err := GetTaskByID(id)
+	if err != nil {
+		return TaskDetail{}, err
+	}
+	taskDetail := TaskDetail{
+		ID:         task.ID,
+		Name:       task.Name,
+		Goal:       task.Goal,
+		Deadline:   task.Deadline.UnixMilli(),
+		InWorkTime: task.InWorkTime,
+		Status:     task.Status.String(),
+	}
+	triggers, err := GetTaskTriggersByID(id)
+	if err != nil {
+		return TaskDetail{}, err
+	}
+	for _, trigger := range triggers {
+		taskDetail.TriggerTypes = append(taskDetail.TriggerTypes, trigger.Type.String())
+		eventInfo, err := trigger.GetEventInfo()
+		if err != nil {
+			return TaskDetail{}, err
+		}
+		taskDetail.EventName = eventInfo.EventName
+		taskDetail.EventDescription = eventInfo.EventDescription
+	}
+
+	afterEffects, err := GetTaskAfterEffectsByID(id)
+	if err != nil {
+		return TaskDetail{}, err
+	}
+	for _, afterEffect := range afterEffects {
+		taskDetail.AfterEffectTypes = append(taskDetail.AfterEffectTypes, afterEffect.Type.String())
+		periodicInfo, err := afterEffect.GetPeriodicInfo()
+		if err != nil {
+			return TaskDetail{}, err
+		}
+		taskDetail.NowAt = periodicInfo.NowAt
+		taskDetail.Period = periodicInfo.Period
+		taskDetail.Intervals = periodicInfo.Intervals
+	}
+
+	if task.Status == Suspended {
+		suspendedTask, err := GetSuspendedTask(id)
+		if err != nil {
+			return TaskDetail{}, err
+		}
+		if suspendedTask.ID != -1 {
+			if suspendedTask.Type == Time {
+				suspendedTimeInfo, err := suspendedTask.GetTimeInfo()
+				if err != nil {
+					return TaskDetail{}, err
+				}
+				taskDetail.ResumeTime = strconv.FormatInt(suspendedTimeInfo.Timestamp, 10)
+			} else if suspendedTask.Type == Email {
+				suspendedEmailInfo, err := suspendedTask.GetEmailInfo()
+				if err != nil {
+					return TaskDetail{}, err
+				}
+				taskDetail.Email = suspendedEmailInfo.Email
+				taskDetail.Keywords = suspendedEmailInfo.Keywords
+			} else {
+				return TaskDetail{}, fmt.Errorf("unknown suspended task type")
+			}
+		}
+	}
+
+	taskDetail.DependencyConstraint = task.DependencyConstraint
+	taskDetail.SubtaskConstraint = task.SubtaskConstraint
+
+	return taskDetail, nil
+}
+
+func updateTaskTriggers(taskDetail TaskDetail) error {
+	err := DeleteTaskTriggersByID(taskDetail.ID)
+	if err != nil {
+		return err
+	}
+	for _, triggerType := range taskDetail.TriggerTypes {
+		if triggerType == "Event" {
+			taskTrigger := TaskTrigger{
+				ID:   taskDetail.ID,
+				Type: Event,
+			}
+			err := taskTrigger.SetEventInfo(taskDetail.EventName, taskDetail.EventDescription)
+			if err != nil {
+				return err
+			}
+			err = AddOrUpdateTaskTrigger(taskTrigger)
+			if err != nil {
+				return err
+			}
+		} else if triggerType == "Dependency" {
+			log.Fatal("Dependency trigger not implemented")
+		}
+	}
+	return nil
+}
+
+func updateTaskAfterEffects(taskDetail TaskDetail) error {
+	err := DeleteTaskAfterEffectByID(taskDetail.ID)
+	if err != nil {
+		return err
+	}
+	for _, afterEffectType := range taskDetail.AfterEffectTypes {
+		if afterEffectType == "Periodic" {
+			taskAfterEffect := TaskAfterEffect{
+				ID:   taskDetail.ID,
+				Type: Periodic,
+			}
+			err := taskAfterEffect.SetPeriodicInfo(PeriodicT{
+				NowAt:     taskDetail.NowAt,
+				Period:    taskDetail.Period,
+				Intervals: taskDetail.Intervals,
+			})
+			if err != nil {
+				return err
+			}
+			err = AddOrUpdateTaskAfterEffect(taskAfterEffect)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func updateSuspendedTask(taskDetail TaskDetail) error {
+	err := DeleteSuspendedTasks(taskDetail.ID)
+	if err != nil {
+		return err
+	}
+	if taskDetail.Status == "Suspended" {
+		if len(taskDetail.SuspendedTaskTypes) != 0 {
+			if taskDetail.SuspendedTaskTypes[0] == "Time" {
+				parse, err := time.Parse(time.RFC3339, taskDetail.ResumeTime)
+				if err != nil {
+					return err
+				}
+				suspendedTimeInfo := SuspendedTimeInfo{
+					Timestamp: parse.UnixMilli(),
+				}
+				jsonData, err := json.Marshal(suspendedTimeInfo)
+				err = AddOrUpdateSuspendedTask(SuspendedTask{
+					ID:   taskDetail.ID,
+					Type: Time,
+					Info: jsonData,
+				})
+				if err != nil {
+					return err
+				}
+			} else if taskDetail.SuspendedTaskTypes[0] == "Email" {
+				suspendedEmailInfo := SuspendedEmailInfo{
+					Email:    taskDetail.Email,
+					Keywords: taskDetail.Keywords,
+				}
+				jsonData, err := json.Marshal(suspendedEmailInfo)
+				err = AddOrUpdateSuspendedTask(SuspendedTask{
+					ID:   taskDetail.ID,
+					Type: Email,
+					Info: jsonData,
+				})
+				if err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("unknown suspended task type")
+			}
+		}
+	}
+	return nil
+}
+
+func SetDetailedTask(taskDetail TaskDetail) error {
+	task, err := GetTaskByID(taskDetail.ID)
+	if err != nil {
+		return err
+	}
+	if task.ID == -1 {
+		return fmt.Errorf("task not found")
+	}
+	task.Name = taskDetail.Name
+	task.Goal = taskDetail.Goal
+	task.Deadline = time.UnixMilli(taskDetail.Deadline)
+	task.InWorkTime = taskDetail.InWorkTime
+	task.Status.FromString(taskDetail.Status)
+	task.ParentTask, err = GetNowViewingTask()
+	if err != nil {
+		return err
+	}
+	err = updateTaskTriggers(taskDetail)
+	if err != nil {
+		return err
+	}
+	err = updateTaskAfterEffects(taskDetail)
+	if err != nil {
+		return err
+	}
+	err = updateSuspendedTask(taskDetail)
+	if err != nil {
+		return err
+	}
+
+	err = DB.Save(&task).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func HaveSubTasks(id int) bool {
 	var count int64
@@ -272,5 +546,183 @@ func CheckParentStatus(id int) bool {
 	return true
 }
 
-// TODO: bool task::complete_task(int64_t task_id)
-// TODO: std::vector<int64_t> task::get_sub_tasks_connected_to_end(int64_t task_id)
+func UpdatePositions(ids, positionXs, positionYs []int) error {
+	nowViewingTask, err := GetNowViewingTask()
+	if err != nil {
+		return err
+	}
+	if nowViewingTask == -1 {
+		return nil
+	}
+	for i, id := range ids {
+		err := DB.Model(&Task{}).Where("id = ?", id).Updates(Task{PositionX: positionXs[i], PositionY: positionYs[i]}).Error
+		if err != nil {
+			log.Fatal("Failed to update positions")
+			return err
+		}
+	}
+	return nil
+}
+
+func UpdatePosition(id, positionX, positionY int) error {
+	err := DB.Model(&Task{}).Where("id = ?", id).Updates(Task{PositionX: positionX, PositionY: positionY}).Error
+	if err != nil {
+		log.Fatal("Failed to update position")
+		return err
+	}
+	return nil
+}
+
+func UpdateConstraints(id int, dependencyConstraint, subtaskConstraint string) error {
+	err := DB.Model(&Task{}).Where("id = ?", id).Updates(Task{DependencyConstraint: dependencyConstraint, SubtaskConstraint: subtaskConstraint}).Error
+	if err != nil {
+		log.Fatal("Failed to update constraints")
+		return err
+	}
+	return nil
+}
+
+func checkParentStatus(id int) {
+	task, err := GetTaskByID(id)
+	if err != nil {
+		return
+	}
+	parentTaskID := task.ParentTask
+	var count int64
+	err = DB.Model(&Task{}).Where("parent_task = ? AND status != ?", parentTaskID, Done).Count(&count).Error
+	if err != nil {
+		return
+	}
+	if count == 0 {
+		err := UpdateTaskStatus(parentTaskID, Done)
+		if err != nil {
+			return
+		}
+		checkParentStatus(parentTaskID)
+	}
+}
+
+const deltaTime int64 = 60 * 60 * 24 * 1000
+
+func CompleteTask(id int) error {
+	task, err := GetTaskByID(id)
+	if err != nil {
+		return err
+	}
+	if task.ID == -1 {
+		return fmt.Errorf("task not found")
+	}
+	err = UpdateTaskStatus(id, Done)
+	if err != nil {
+		return err
+	}
+	checkParentStatus(id)
+	afect, err := GetTaskAfterEffectsByID(id)
+	if len(afect) == 0 {
+		return nil
+	}
+	afterEffect := afect[0]
+	if afterEffect.Type == Periodic {
+		periodicInfo, err := afterEffect.GetPeriodicInfo()
+		if err != nil {
+			return err
+		}
+		if len(periodicInfo.Intervals) == 0 {
+			err = DeleteTaskAfterEffectByID(id)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		periodicT := PeriodicT{
+			NowAt:     periodicInfo.NowAt,
+			Period:    periodicInfo.Period,
+			Intervals: periodicInfo.Intervals,
+		}
+		if periodicT.NowAt == len(periodicT.Intervals)-1 {
+			periodicInfo.NowAt = 0
+			periodicInfo.Period++
+			err := UpdateTaskStatus(id, Todo)
+			if err != nil {
+				return err
+			}
+			err = UpdateTaskDeadline(id, task.Deadline.UnixMilli()+deltaTime)
+			if err != nil {
+				return err
+			}
+		} else {
+			periodicInfo.NowAt++
+			err = UpdateTaskDeadline(id, task.Deadline.UnixMilli()+int64(periodicT.Intervals[periodicT.NowAt]))
+			if err != nil {
+				return err
+			}
+		}
+		err = afterEffect.SetPeriodicInfo(periodicT)
+		if err != nil {
+			return err
+		}
+		err = AddOrUpdateTaskAfterEffect(afterEffect)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func GetSubTasksConnectedToEnd(id int) ([]int, error) {
+	var subTasksConnectedToEnd []int
+	tasks, err := GetTasksByParentTask(id)
+	if err != nil {
+		return nil, err
+	}
+
+	relations, err := GetRelationByParentTask(id)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceSet := make(map[int]bool)
+	targetSet := make(map[int]bool)
+	connectedMap := make(map[int]bool)
+	for _, relation := range relations {
+		sourceSet[relation.Source] = true
+		targetSet[relation.Target] = true
+		connectedMap[relation.Source] = true
+		connectedMap[relation.Target] = true
+	}
+
+	intersection := make(map[int]bool)
+	for k := range sourceSet {
+		if targetSet[k] {
+			intersection[k] = true
+		}
+	}
+
+	sourceTarget := make(map[int]bool)
+	for k := range sourceSet {
+		if !intersection[k] {
+			sourceTarget[k] = true
+		}
+	}
+
+	targetSource := make(map[int]bool)
+	for k := range targetSet {
+		if !intersection[k] {
+			targetSource[k] = true
+		}
+	}
+
+	for k := range targetSource {
+		subTasksConnectedToEnd = append(subTasksConnectedToEnd, k)
+	}
+
+	for _, task := range tasks {
+		if !connectedMap[task.ID] {
+			subTasksConnectedToEnd = append(subTasksConnectedToEnd, task.ID)
+		}
+	}
+
+	sort.Slice(subTasksConnectedToEnd, func(i, j int) bool { return subTasksConnectedToEnd[i] < subTasksConnectedToEnd[j] })
+
+	return subTasksConnectedToEnd, nil
+}

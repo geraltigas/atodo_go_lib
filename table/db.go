@@ -33,6 +33,22 @@ func InitDB() error {
 		if err != nil {
 			return err
 		}
+		err = InitSuspendedTaskTable()
+		if err != nil {
+			return err
+		}
+		err = InitTaskAfterEffectTable()
+		if err != nil {
+			return err
+		}
+		err = InitTaskRelationTable()
+		if err != nil {
+			return err
+		}
+		err = InitTaskTriggerTable()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

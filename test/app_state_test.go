@@ -1,25 +1,27 @@
-package table
+package test
 
 import "testing"
 
+import "atodo_go/table"
+
 func TestRootTask(t *testing.T) {
-	err := InitDB()
+	err := table.InitDB()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rootTask, err := GetRootTask()
+	rootTask, err := table.GetRootTask()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	setRootTask := 100
-	err = SetRootTask(setRootTask)
+	err = table.SetRootTask(setRootTask)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rootTaskN, err := GetRootTask()
+	rootTaskN, err := table.GetRootTask()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +30,7 @@ func TestRootTask(t *testing.T) {
 		t.Fatal("Failed to set root task")
 	}
 
-	err = SetRootTask(rootTask)
+	err = table.SetRootTask(rootTask)
 	if err != nil {
 		t.Fatal(err)
 	}
