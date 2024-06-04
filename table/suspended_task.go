@@ -82,6 +82,17 @@ const (
 	Email
 )
 
+func (t SuspendedTaskType) String() (string, error) {
+	names := [...]string{
+		"Time",
+		"Email",
+	}
+	if t < Time || t > Email {
+		return "Unknown", errors.New("unknown SuspendedTaskType")
+	}
+	return names[t], nil
+}
+
 type SuspendedTimeInfo struct {
 	Timestamp int64
 }

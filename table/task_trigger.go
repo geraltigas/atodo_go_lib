@@ -2,6 +2,7 @@ package table
 
 import (
 	"encoding/json"
+	"errors"
 	"gorm.io/datatypes"
 )
 
@@ -14,19 +15,19 @@ type TaskTrigger struct {
 type TaskTriggerType int
 
 const (
-	Dependency TaskTriggerType = 0
-	Event      TaskTriggerType = 1
+	Dependency TaskTriggerType = iota
+	Event
 )
 
-func (t TaskTriggerType) String() string {
+func (t TaskTriggerType) String() (string, error) {
 	names := [...]string{
 		"Dependency",
 		"Event",
 	}
 	if t < Dependency || t > Event {
-		return "Unknown"
+		return "Unknown", errors.New("unknown TaskTriggerType")
 	}
-	return names[t]
+	return names[t], nil
 }
 
 func (TaskTrigger) TableName() string {
@@ -34,12 +35,12 @@ func (TaskTrigger) TableName() string {
 }
 
 type DependencyInfo struct {
-	Source int
+	Source int `json:"source"`
 }
 
 type EventInfo struct {
-	EventName        string
-	EventDescription string
+	EventName        string `json:"event_name"`
+	EventDescription string `json:"event_description"`
 }
 
 func InitTaskTriggerTable() error {

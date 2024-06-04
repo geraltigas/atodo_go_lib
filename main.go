@@ -2,14 +2,13 @@ package main
 
 import (
 	"atodo_go/table"
-	"fmt"
+	"atodo_go/web"
 )
 
 func main() {
-	fmt.Println("Hello, World!")
 	err := table.InitDB()
 	if err != nil {
 		return
 	}
-
+	web.RunWebServer(web.InitWebInterface())
 }

@@ -14,17 +14,17 @@ type TaskAfterEffect struct {
 type AfterEffectType int
 
 const (
-	Periodic AfterEffectType = 0
+	Periodic AfterEffectType = iota
 )
 
-func (t AfterEffectType) String() string {
+func (t AfterEffectType) String() (string, error) {
 	names := [...]string{
 		"Periodic",
 	}
 	if t < Periodic || t > Periodic {
-		return "Unknown"
+		return "Unknown", nil
 	}
-	return names[t]
+	return names[t], nil
 }
 
 func (*TaskAfterEffect) TableName() string {

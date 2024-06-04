@@ -8,26 +8,27 @@ import (
 )
 
 type ShowEdge struct {
-	Source string
-	Target string
+	Source string `json:"source"`
+	Target string `json:"target"`
 }
 
 type ShowNode struct {
-	ID       string
-	Name     string
-	Position Position
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Position Position `json:"position"`
+	Status   string   `json:"status"`
 }
 
 type Position struct {
-	X int
-	Y int
+	X int `json:"x"`
+	Y int `json:"y"`
 }
 
 type ShowData struct {
-	Nodes                []ShowNode
-	Edges                []ShowEdge
-	NodeConnectedToStart []string
-	NodeConnectedToEnd   []string
+	Nodes                []ShowNode `json:"nodes"`
+	Edges                []ShowEdge `json:"edges"`
+	NodeConnectedToStart []string   `json:"node_connected_to_start"`
+	NodeConnectedToEnd   []string   `json:"node_connected_to_end"`
 }
 
 func inferenceStartAndEndNodes(nodes []ShowNode, relations []table.TaskRelation) ([]string, []string) {
@@ -69,12 +70,12 @@ func inferenceStartAndEndNodes(nodes []ShowNode, relations []table.TaskRelation)
 	}
 
 	for k := range sourceTarget {
-		nodeConnectedToStart = append(nodeConnectedToStart, string(rune(k)))
+		nodeConnectedToStart = append(nodeConnectedToStart, strconv.Itoa(k))
 		connectedMap[k] = true
 	}
 
 	for k := range targetSource {
-		nodeConnectedToEnd = append(nodeConnectedToEnd, string(rune(k)))
+		nodeConnectedToEnd = append(nodeConnectedToEnd, strconv.Itoa(k))
 		connectedMap[k] = true
 	}
 
@@ -115,9 +116,6 @@ func GetShowStack() ([]string, error) {
 			return nil, err
 		}
 		stack = append(stack, task.Name)
-	}
-	if len(stack) > 0 {
-		stack = stack[:len(stack)-1]
 	}
 	return stack, nil
 }
