@@ -6,7 +6,7 @@ import (
 )
 
 func InitWebInterface() *gin.Engine {
-	//gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	err := router.SetTrustedProxies([]string{"127.0.0.1"})
 	if err != nil {
@@ -17,6 +17,7 @@ func InitWebInterface() *gin.Engine {
 	InitTaskRelationWebInterface(router)
 	InitTaskShowWebInterface(router)
 	InitScheduleWebInterface(router)
+	InitAppWebInterface(router)
 	return router
 }
 

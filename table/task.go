@@ -6,6 +6,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -98,7 +99,6 @@ func DeleteTask(id int) error {
 		log.Fatal("Failed to delete task: ", err)
 		return err
 	}
-	log.Println("Task deleted: ", id)
 	return nil
 }
 
@@ -312,10 +312,13 @@ func GetDetailedTask(id int) (TaskDetail, error) {
 	taskDetail.Task.Deadline = task.Deadline.UnixMilli()
 	taskDetail.Task.InWorkTime = task.InWorkTime
 	statusString, err := task.Status.String()
+	taskDetail.SuspendedTaskTypes = []string{}
+	taskDetail.TriggerTypes = []string{}
+	taskDetail.AfterEffectTypes = []string{}
 	if err != nil {
 		return TaskDetail{}, err
 	}
-	taskDetail.Task.Status = statusString
+	taskDetail.Task.Status = strings.ToLower(statusString)
 	triggers, err := GetTaskTriggersByID(id)
 	if err != nil {
 		return TaskDetail{}, err
@@ -567,7 +570,7 @@ func CheckParentStatus(id int) bool {
 
 type UpdateTaskUIs struct {
 	TaskUIs []struct {
-		ID       int `json:"id"`
+		ID       string `json:"id"`
 		Position struct {
 			X int `json:"x"`
 			Y int `json:"y"`

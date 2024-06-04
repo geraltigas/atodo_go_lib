@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type ShowEdge struct {
@@ -138,6 +139,10 @@ func GetShowDataByTaskID(id int) (*ShowData, error) {
 	}
 	showData := ShowData{}
 	for _, task := range tasks {
+		statusStr, err := task.Status.String()
+		if err != nil {
+			return nil, err
+		}
 		showData.Nodes = append(showData.Nodes, ShowNode{
 			ID:   fmt.Sprintf("%d", task.ID),
 			Name: task.Name,
@@ -145,6 +150,7 @@ func GetShowDataByTaskID(id int) (*ShowData, error) {
 				X: task.PositionX,
 				Y: task.PositionY,
 			},
+			Status: strings.ToLower(statusStr),
 		})
 	}
 
