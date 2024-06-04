@@ -51,12 +51,12 @@ func TestAddSuspendedTask(t *testing.T) {
 		t.Error("Failed to get suspended task")
 	}
 
-	err = table.DeleteSuspendedTask(1)
+	err = table.DeleteSuspendedTasks(1)
 	if err != nil {
 		return
 	}
 
-	err = table.DeleteSuspendedTask(2)
+	err = table.DeleteSuspendedTasks(2)
 	if err != nil {
 		return
 	}

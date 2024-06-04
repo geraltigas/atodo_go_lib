@@ -11,13 +11,19 @@ func TestAddOrUpdateTaskAfterEffect(t *testing.T) {
 		Type: table.Periodic,
 	}
 
-	taskAfterEffect.SetPeriodicInfo(table.PeriodicT{
+	err := taskAfterEffect.SetPeriodicInfo(table.PeriodicT{
 		Period:    1,
 		NowAt:     2,
-		Intervals: []int64{3, 4},
+		Intervals: []int{3, 4},
 	})
+	if err != nil {
+		return
+	}
 
-	table.AddOrUpdateTaskAfterEffect(taskAfterEffect)
+	err = table.AddOrUpdateTaskAfterEffect(taskAfterEffect)
+	if err != nil {
+		return
+	}
 
 	tae, err := table.GetTaskAfterEffect(taskAfterEffect.ID, taskAfterEffect.Type)
 	if err != nil {
