@@ -94,7 +94,7 @@ func (t SuspendedTaskType) String() (string, error) {
 }
 
 type SuspendedTimeInfo struct {
-	Timestamp int64
+	Timestamp int64 `json:"timestamp"`
 }
 
 func (info *SuspendedTimeInfo) GetTimeInfo() (*SuspendedTimeInfo, error) {
@@ -110,8 +110,8 @@ func (info *SuspendedTimeInfo) Equal(other SuspendedTimeInfo) bool {
 }
 
 type SuspendedEmailInfo struct {
-	Email    string
-	Keywords []string
+	Email    string   `json:"email"`
+	Keywords []string `json:"keywords"`
 }
 
 func (info *SuspendedEmailInfo) GetTimeInfo() (*SuspendedTimeInfo, error) {

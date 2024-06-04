@@ -2,12 +2,15 @@ package web
 
 import (
 	"atodo_go/table"
+	"fmt"
 	"github.com/gin-gonic/gin"
 )
 
 type TaskRelationRequest struct {
-	Source int `json:"source"`
-	Target int `json:"target"`
+	TaskRelation struct {
+		Source int `json:"source"`
+		Target int `json:"target"`
+	} `json:"task_relation"`
 }
 
 func InitTaskRelationWebInterface(engine *gin.Engine) {
@@ -18,7 +21,7 @@ func InitTaskRelationWebInterface(engine *gin.Engine) {
 			return
 		}
 
-		err := table.AddRelationDefault(request.Source, request.Target)
+		err := table.AddRelationDefault(request.TaskRelation.Source, request.TaskRelation.Target)
 		if err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
@@ -33,7 +36,8 @@ func InitTaskRelationWebInterface(engine *gin.Engine) {
 			c.JSON(400, gin.H{"error": "Invalid request: " + err.Error()})
 			return
 		}
-		err = table.DeleteRelation(request.Source, request.Target)
+		fmt.Println(request)
+		err = table.DeleteRelation(request.TaskRelation.Source, request.TaskRelation.Target)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Internal error: " + err.Error()})
 			return

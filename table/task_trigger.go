@@ -30,7 +30,7 @@ func (t TaskTriggerType) String() (string, error) {
 	return names[t], nil
 }
 
-func (TaskTrigger) TableName() string {
+func (*TaskTrigger) TableName() string {
 	return "task_trigger"
 }
 
@@ -76,7 +76,7 @@ func GetTaskTriggersByID(id int) ([]TaskTrigger, error) {
 	return taskTriggers, nil
 }
 
-func (t TaskTrigger) SetDependencyInfo(source int) error {
+func (t *TaskTrigger) SetDependencyInfo(source int) error {
 	dependencyInfo := DependencyInfo{Source: source}
 	marshal, err := json.Marshal(dependencyInfo)
 	if err != nil {
@@ -86,7 +86,7 @@ func (t TaskTrigger) SetDependencyInfo(source int) error {
 	return nil
 }
 
-func (t TaskTrigger) GetDependencyInfo() (*DependencyInfo, error) {
+func (t *TaskTrigger) GetDependencyInfo() (*DependencyInfo, error) {
 	var dependencyInfo DependencyInfo
 	err := json.Unmarshal(t.Info, &dependencyInfo)
 	if err != nil {
@@ -95,7 +95,7 @@ func (t TaskTrigger) GetDependencyInfo() (*DependencyInfo, error) {
 	return &dependencyInfo, nil
 }
 
-func (t TaskTrigger) SetEventInfo(eventName string, eventDescription string) error {
+func (t *TaskTrigger) SetEventInfo(eventName string, eventDescription string) error {
 	eventInfo := EventInfo{EventName: eventName, EventDescription: eventDescription}
 	marshal, err := json.Marshal(eventInfo)
 	if err != nil {
@@ -105,7 +105,7 @@ func (t TaskTrigger) SetEventInfo(eventName string, eventDescription string) err
 	return nil
 }
 
-func (t TaskTrigger) GetEventInfo() (*EventInfo, error) {
+func (t *TaskTrigger) GetEventInfo() (*EventInfo, error) {
 	var eventInfo EventInfo
 	err := json.Unmarshal(t.Info, &eventInfo)
 	if err != nil {

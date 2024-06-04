@@ -6,7 +6,6 @@ import (
 	"log"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -315,10 +314,12 @@ func GetDetailedTask(id int) (TaskDetail, error) {
 	taskDetail.SuspendedTaskTypes = []string{}
 	taskDetail.TriggerTypes = []string{}
 	taskDetail.AfterEffectTypes = []string{}
+	taskDetail.SuspendedTask.Keywords = []string{}
+	taskDetail.AfterEffect.Intervals = []int{}
 	if err != nil {
 		return TaskDetail{}, err
 	}
-	taskDetail.Task.Status = strings.ToLower(statusString)
+	taskDetail.Task.Status = statusString
 	triggers, err := GetTaskTriggersByID(id)
 	if err != nil {
 		return TaskDetail{}, err
@@ -379,6 +380,11 @@ func GetDetailedTask(id int) (TaskDetail, error) {
 				return TaskDetail{}, fmt.Errorf("unknown suspended task type")
 			}
 		}
+		suspendedTaskTypeString, err := suspendedTask.Type.String()
+		if err != nil {
+			return TaskDetail{}, err
+		}
+		taskDetail.SuspendedTaskTypes = append(taskDetail.SuspendedTaskTypes, suspendedTaskTypeString)
 	}
 
 	taskDetail.TaskConstraint.DependencyConstraint = task.DependencyConstraint
@@ -449,10 +455,11 @@ func updateSuspendedTask(taskDetail TaskDetail) error {
 	if taskDetail.Task.Status == "Suspended" {
 		if len(taskDetail.SuspendedTaskTypes) != 0 {
 			if taskDetail.SuspendedTaskTypes[0] == "Time" {
-				parse, err := time.Parse(time.RFC3339, taskDetail.SuspendedTask.ResumeTime)
+				timestamp, err := strconv.ParseInt(taskDetail.SuspendedTask.ResumeTime, 10, 64)
 				if err != nil {
 					return err
 				}
+				parse := time.UnixMilli(timestamp)
 				suspendedTimeInfo := SuspendedTimeInfo{
 					Timestamp: parse.UnixMilli(),
 				}
@@ -515,6 +522,9 @@ func SetDetailedTask(taskDetail TaskDetail) error {
 	err = updateSuspendedTask(taskDetail)
 	if err != nil {
 		return err
+	}
+	if len(taskDetail.SuspendedTaskTypes) == 0 && task.Status == Suspended {
+		task.Status = Todo
 	}
 
 	err = DB.Save(&task).Error

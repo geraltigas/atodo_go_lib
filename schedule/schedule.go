@@ -165,7 +165,6 @@ func Schedule() (*TSchedule, error) {
 				continue
 			}
 
-			eventTriggerTasks = eventTriggerTasks[:0]
 			taskTriggers, err := table.GetTaskTriggersByID(taskId)
 			if err != nil {
 				return nil, err

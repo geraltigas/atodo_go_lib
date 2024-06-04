@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 )
 
 type ShowEdge struct {
@@ -32,15 +31,15 @@ type ShowData struct {
 	NodeConnectedToEnd   []string   `json:"node_connected_to_end"`
 }
 
-func inferenceStartAndEndNodes(nodes []ShowNode, relations []table.TaskRelation) ([]string, []string) {
-	var nodeConnectedToStart []string
-	var nodeConnectedToEnd []string
+func inferenceStartAndEndNodes(nodes *[]ShowNode, relations *[]table.TaskRelation) (*[]string, *[]string) {
+	nodeConnectedToStart := make([]string, 0)
+	nodeConnectedToEnd := make([]string, 0)
 
 	sourceSet := make(map[int]bool)
 	targetSet := make(map[int]bool)
 	connectedMap := make(map[int]bool)
 
-	for _, relation := range relations {
+	for _, relation := range *relations {
 		sourceSet[relation.Source] = true
 		targetSet[relation.Target] = true
 	}
@@ -80,7 +79,7 @@ func inferenceStartAndEndNodes(nodes []ShowNode, relations []table.TaskRelation)
 		connectedMap[k] = true
 	}
 
-	for _, node := range nodes {
+	for _, node := range *nodes {
 		nodeID, err := strconv.Atoi(node.ID)
 		if err != nil {
 			panic(err)
@@ -94,7 +93,7 @@ func inferenceStartAndEndNodes(nodes []ShowNode, relations []table.TaskRelation)
 	sort.Strings(nodeConnectedToStart)
 	sort.Strings(nodeConnectedToEnd)
 
-	return nodeConnectedToStart, nodeConnectedToEnd
+	return &nodeConnectedToStart, &nodeConnectedToEnd
 }
 
 func GetShowStack() ([]string, error) {
@@ -137,7 +136,12 @@ func GetShowDataByTaskID(id int) (*ShowData, error) {
 	if err != nil {
 		return nil, err
 	}
-	showData := ShowData{}
+	showData := ShowData{
+		Nodes:                []ShowNode{},
+		Edges:                []ShowEdge{},
+		NodeConnectedToStart: []string{},
+		NodeConnectedToEnd:   []string{},
+	}
 	for _, task := range tasks {
 		statusStr, err := task.Status.String()
 		if err != nil {
@@ -150,7 +154,7 @@ func GetShowDataByTaskID(id int) (*ShowData, error) {
 				X: task.PositionX,
 				Y: task.PositionY,
 			},
-			Status: strings.ToLower(statusStr),
+			Status: statusStr,
 		})
 	}
 
@@ -165,8 +169,8 @@ func GetShowDataByTaskID(id int) (*ShowData, error) {
 		})
 	}
 
-	nodeConnectedToStart, nodeConnectedToEnd := inferenceStartAndEndNodes(showData.Nodes, relations)
-	showData.NodeConnectedToStart = nodeConnectedToStart
-	showData.NodeConnectedToEnd = nodeConnectedToEnd
+	nodeConnectedToStart, nodeConnectedToEnd := inferenceStartAndEndNodes(&showData.Nodes, &relations)
+	showData.NodeConnectedToStart = *nodeConnectedToStart
+	showData.NodeConnectedToEnd = *nodeConnectedToEnd
 	return &showData, nil
 }
