@@ -92,7 +92,7 @@ func InitAppStateWebInterface(engine *gin.Engine) {
 			c.JSON(500, gin.H{"error": "Internal error: " + err.Error()})
 			return
 		}
-		c.JSON(200, gin.H{"task": task})
+		c.JSON(200, gin.H{"now_doing_task": task})
 	})
 
 	engine.POST("/app_state/set_now_is_work_time", func(c *gin.Context) {

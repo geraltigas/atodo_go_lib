@@ -2,6 +2,9 @@ package schedule
 
 import (
 	"atodo_go/table"
+	"errors"
+	"sort"
+	"time"
 )
 
 type TaskShow struct {
@@ -59,11 +62,39 @@ type TSchedule struct {
 	EventTriggerTask []EventTriggerTaskShow `json:"event_trigger_tasks"`
 }
 
-func suspendedTaskPreprocess(task table.Task) {
-
+func suspendedTaskPreprocess(task table.Task) error {
+	now := time.Now()
+	millis := now.UnixMilli()
+	info, err := table.GetSuspendedTask(task.ID)
+	if err != nil {
+		return err
+	}
+	var resumeTime int64
+	switch info.Type {
+	case table.Time:
+		timeInfo, err := info.GetTimeInfo()
+		if err != nil {
+			return err
+		}
+		resumeTime = timeInfo.Timestamp
+		if resumeTime <= millis {
+			task.Status = table.Todo
+			err := table.UpdateTaskStatus(task.ID, task.Status)
+			if err != nil {
+				return err
+			}
+			err = table.DeleteSuspendedTasks(task.ID)
+			if err != nil {
+				return err
+			}
+		}
+	case table.Email:
+		return errors.New("email type suspended task is not supported")
+	default:
+		return errors.New("unknown suspended task type")
+	}
+	return nil
 }
-
-// use generic type
 
 func GetFirstElementFromSet[T comparable](set map[T]bool) *T {
 	for key := range set {
@@ -73,8 +104,11 @@ func GetFirstElementFromSet[T comparable](set map[T]bool) *T {
 }
 
 func Schedule() (*TSchedule, error) {
+	tasksIdSet := make(map[int]bool)
 	tasks := make([]TaskShow, 0)
+	suspendedTasksIdSet := make(map[int]bool)
 	suspendedTasks := make([]SuspendedTaskShow, 0)
+	eventTriggerTasksIdSet := make(map[int]bool)
 	eventTriggerTasks := make([]EventTriggerTaskShow, 0)
 	nowViewingTask, err := table.GetRootTask()
 	if err != nil {
@@ -91,7 +125,10 @@ func Schedule() (*TSchedule, error) {
 			return nil, err
 		}
 		if task.Status == table.Suspended {
-			suspendedTaskPreprocess(task)
+			err := suspendedTaskPreprocess(task)
+			if err != nil {
+				return nil, err
+			}
 		}
 		switch task.Status {
 		case table.Suspended:
@@ -127,7 +164,10 @@ func Schedule() (*TSchedule, error) {
 					Keywords: emailInfo.Keywords,
 				}
 			}
-			suspendedTasks = append(suspendedTasks, suspendedTaskShow)
+			if !suspendedTasksIdSet[suspendedTaskShow.Id] {
+				suspendedTasks = append(suspendedTasks, suspendedTaskShow)
+				suspendedTasksIdSet[suspendedTaskShow.Id] = true
+			}
 			delete(waitForViewing, taskId)
 			continue
 		case table.Todo:
@@ -174,7 +214,7 @@ func Schedule() (*TSchedule, error) {
 				if err != nil {
 					return nil, err
 				}
-				eventTriggerTasks = append(eventTriggerTasks, EventTriggerTaskShow{
+				eventTriggerTask := EventTriggerTaskShow{
 					Id:               task.ID,
 					Name:             task.Name,
 					Goal:             task.Goal,
@@ -182,15 +222,23 @@ func Schedule() (*TSchedule, error) {
 					InWorkTime:       task.InWorkTime,
 					EventName:        triggerInfo.EventName,
 					EventDescription: triggerInfo.EventDescription,
-				})
+				}
+				if !eventTriggerTasksIdSet[eventTriggerTask.Id] {
+					eventTriggerTasks = append(eventTriggerTasks, eventTriggerTask)
+					eventTriggerTasksIdSet[eventTriggerTask.Id] = true
+				}
 			} else {
-				tasks = append(tasks, TaskShow{
+				task := TaskShow{
 					Id:         task.ID,
 					Name:       task.Name,
 					Goal:       task.Goal,
 					Deadline:   task.Deadline.UnixMilli(),
 					InWorkTime: task.InWorkTime,
-				})
+				}
+				if !tasksIdSet[task.Id] {
+					tasks = append(tasks, task)
+					tasksIdSet[task.Id] = true
+				}
 			}
 			delete(waitForViewing, taskId)
 			continue
@@ -199,6 +247,19 @@ func Schedule() (*TSchedule, error) {
 			continue
 		}
 	}
+
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Deadline < tasks[j].Deadline
+	})
+
+	sort.Slice(suspendedTasks, func(i, j int) bool {
+		return suspendedTasks[i].Deadline < suspendedTasks[j].Deadline
+	})
+
+	sort.Slice(eventTriggerTasks, func(i, j int) bool {
+		return eventTriggerTasks[i].Deadline < eventTriggerTasks[j].Deadline
+	})
+
 	return &TSchedule{
 		Tasks:            tasks,
 		SuspendedTasks:   suspendedTasks,
