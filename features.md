@@ -1,0 +1,1 @@
+- ctrl+x, ctrl+c, ctrl+v

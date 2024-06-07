@@ -215,17 +215,22 @@ func GetTasksByParentTask(parentTask int) ([]Task, error) {
 }
 
 func CreateTask(name string, goal string, deadline int64, inWorkTime bool) (int, error) {
+	nowViewingTask, err := GetNowViewingTask()
+	if err != nil {
+		return -1, err
+	}
 	task := Task{
 		Name:       name,
 		Goal:       goal,
 		RootTask:   0,
 		Deadline:   time.UnixMilli(deadline),
 		InWorkTime: inWorkTime,
+		ParentTask: nowViewingTask,
 		Status:     Todo,
 	}
 	fmt.Println("Task created: ", task)
 	task.ID = AddTask(task)
-	err := UpdatePosition(task.ID, 0, 0)
+	err = UpdatePosition(task.ID, 0, 0)
 	if err != nil {
 		return -1, err
 	}
