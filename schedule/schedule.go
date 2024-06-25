@@ -62,38 +62,40 @@ type TSchedule struct {
 	EventTriggerTask []EventTriggerTaskShow `json:"event_trigger_tasks"`
 }
 
-func suspendedTaskPreprocess(task table.Task) error {
+func suspendedTaskPreprocess(task table.Task) (error, bool) {
 	now := time.Now()
 	millis := now.UnixMilli()
+	updated := false
 	info, err := table.GetSuspendedTask(task.ID)
 	if err != nil {
-		return err
+		return err, false
 	}
 	var resumeTime int64
 	switch info.Type {
 	case table.Time:
 		timeInfo, err := info.GetTimeInfo()
 		if err != nil {
-			return err
+			return err, false
 		}
 		resumeTime = timeInfo.Timestamp
 		if resumeTime <= millis {
 			task.Status = table.Todo
 			err := table.UpdateTaskStatus(task.ID, task.Status)
 			if err != nil {
-				return err
+				return err, false
 			}
 			err = table.DeleteSuspendedTasks(task.ID)
 			if err != nil {
-				return err
+				return err, false
 			}
+			updated = true
 		}
 	case table.Email:
-		return errors.New("email type suspended task is not supported")
+		return errors.New("email type suspended task is not supported"), false
 	default:
-		return errors.New("unknown suspended task type")
+		return errors.New("unknown suspended task type"), false
 	}
-	return nil
+	return nil, updated
 }
 
 func GetFirstElementFromSet[T comparable](set map[T]bool) *T {
@@ -125,9 +127,12 @@ func Schedule() (*TSchedule, error) {
 			return nil, err
 		}
 		if task.Status == table.Suspended {
-			err := suspendedTaskPreprocess(task)
+			err, updated := suspendedTaskPreprocess(task)
 			if err != nil {
 				return nil, err
+			}
+			if updated {
+				task.Status = table.Todo
 			}
 		}
 		switch task.Status {
