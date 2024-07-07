@@ -559,6 +559,16 @@ func GetSubTasks(id int) ([]Task, error) {
 	return tasks, nil
 }
 
+func GetSubTasksID(id int) ([]int, error) {
+	var taskIDs []int
+	err := DB.Model(&Task{}).Where("parent_task = ?", id).Pluck("id", &taskIDs).Error
+	if err != nil {
+		log.Fatal("Failed to get subtasks ID: ", err)
+		return nil, err
+	}
+	return taskIDs, nil
+}
+
 func CheckParentStatus(id int) bool {
 	task, err := GetTaskByID(id)
 	if err != nil {
@@ -774,4 +784,78 @@ func GetSubTasksConnectedToEnd(id int) ([]int, error) {
 	sort.Slice(subTasksConnectedToEnd, func(i, j int) bool { return subTasksConnectedToEnd[i] < subTasksConnectedToEnd[j] })
 
 	return subTasksConnectedToEnd, nil
+}
+
+func CopyTask(id int) (int, error) {
+	nowViewingTask, err := GetNowViewingTask()
+	if err != nil {
+		return -1, err
+	}
+	id, err = copyTaskAndSubTasks(id, nowViewingTask)
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
+}
+
+func copyTaskAndSubTasks(id int, parentID int) (int, error) {
+	task, err := GetTaskByID(id)
+	if err != nil {
+		return -1, err
+	}
+
+	if task.ID == -1 {
+		return -1, fmt.Errorf("task not found")
+	}
+
+	newTask := Task{
+		Name:                 task.Name,
+		Goal:                 task.Goal,
+		RootTask:             task.RootTask,
+		Deadline:             task.Deadline,
+		InWorkTime:           task.InWorkTime,
+		Status:               task.Status,
+		ParentTask:           parentID,
+		PositionX:            task.PositionX,
+		PositionY:            task.PositionY,
+		DependencyConstraint: task.DependencyConstraint,
+		SubtaskConstraint:    task.SubtaskConstraint,
+	}
+
+	newId := AddTask(newTask)
+	if newId == -1 {
+		return -1, fmt.Errorf("failed to add task")
+	}
+
+	id2NewIdMap := make(map[int]int)
+	id2NewIdMap[id] = newId
+
+	subTasks, err := GetSubTasksID(id)
+	if err != nil {
+		return -1, err
+	}
+	if len(subTasks) == 0 {
+		return newId, nil
+	}
+	for _, subTask := range subTasks {
+		id, err := copyTaskAndSubTasks(subTask, newId)
+		id2NewIdMap[subTask] = id
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	relations, err := GetRelationByParentTask(id)
+	if err != nil {
+		return -1, err
+	}
+	for _, relation := range relations {
+		source := id2NewIdMap[relation.Source]
+		target := id2NewIdMap[relation.Target]
+		err := AddRelation(newId, source, target)
+		if err != nil {
+			return -1, err
+		}
+	}
+	return newId, nil
 }

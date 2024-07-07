@@ -1,1 +1,3 @@
-- ctrl+x, ctrl+c, ctrl+v
+- [x] ctrl+x, ctrl+c, ctrl+v
+- [ ] ctrl+v support task_x copy
+- [ ] root task switch

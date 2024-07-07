@@ -107,4 +107,18 @@ func InitTaskWebInterface(engine *gin.Engine) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	engine.POST("/task/copy_task", func(c *gin.Context) {
+		var request IDRequest
+		err := c.BindJSON(&request)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Invalid request: " + err.Error()})
+			return
+		}
+		_, err = table.CopyTask(request.ID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Internal error: " + err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"status": "ok"})
+	})
 }
