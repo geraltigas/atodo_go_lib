@@ -167,6 +167,12 @@ func GetSuspendedTask(id int) (SuspendedTask, error) {
 	return task, err
 }
 
+func IsTaskSuspended(id int) bool {
+	var count int64
+	DB.Model(&SuspendedTask{}).Where("id = ?", id).Count(&count)
+	return count > 0
+}
+
 func AddOrUpdateSuspendedTask(task SuspendedTask) error {
 	err := DB.Save(&task).Error
 	if err != nil {

@@ -827,6 +827,21 @@ func copyTaskAndSubTasks(id int, parentID int) (int, error) {
 		return -1, fmt.Errorf("failed to add task")
 	}
 
+	err = copySuspendedTask(id, newId)
+	if err != nil {
+		return -1, err
+	}
+
+	err = copyTaskAfterEffect(id, newId)
+	if err != nil {
+		return -1, err
+	}
+
+	err = copyTaskTrigger(id, newId)
+	if err != nil {
+		return -1, err
+	}
+
 	id2NewIdMap := make(map[int]int)
 	id2NewIdMap[id] = newId
 
@@ -858,4 +873,68 @@ func copyTaskAndSubTasks(id int, parentID int) (int, error) {
 		}
 	}
 	return newId, nil
+}
+
+func copySuspendedTask(id int, newId int) error {
+	if !IsTaskSuspended(id) {
+		return nil
+	}
+	suspendedTask, err := GetSuspendedTask(id)
+	if err != nil {
+		return err
+	}
+	if suspendedTask.ID == -1 {
+		return nil
+	}
+	err = AddOrUpdateSuspendedTask(SuspendedTask{
+		ID:   newId,
+		Type: suspendedTask.Type,
+		Info: suspendedTask.Info,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func copyTaskAfterEffect(id int, newId int) error {
+	afterEffects, err := GetTaskAfterEffectsByID(id)
+	if err != nil {
+		return err
+	}
+	if len(afterEffects) == 0 {
+		return nil
+	}
+	for _, afterEffect := range afterEffects {
+		err := AddOrUpdateTaskAfterEffect(TaskAfterEffect{
+			ID:   newId,
+			Type: afterEffect.Type,
+			Info: afterEffect.Info,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyTaskTrigger(id int, newId int) error {
+	triggers, err := GetTaskTriggersByID(id)
+	if err != nil {
+		return err
+	}
+	if len(triggers) == 0 {
+		return nil
+	}
+	for _, trigger := range triggers {
+		err := AddOrUpdateTaskTrigger(TaskTrigger{
+			ID:   newId,
+			Type: trigger.Type,
+			Info: trigger.Info,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
