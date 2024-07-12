@@ -3,6 +3,7 @@ package schedule
 import (
 	"atodo_go/table"
 	"errors"
+	"github.com/gen2brain/beeep"
 	"sort"
 	"time"
 )
@@ -89,6 +90,10 @@ func suspendedTaskPreprocess(task table.Task) (error, bool) {
 				return err, false
 			}
 			updated = true
+			err = beeep.Notify(task.Name+" - Time Resumed", task.Goal, "")
+			if err != nil {
+				return err, false
+			}
 		}
 	case table.Email:
 		return errors.New("email type suspended task is not supported"), false
