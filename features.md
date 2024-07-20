@@ -1,3 +1,4 @@
 - [x] ctrl+x, ctrl+c, ctrl+v
 - [x] ctrl+v support task_x copy
 - [ ] root task switch
+- [ ] event trigger ddl
